@@ -35,7 +35,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
 
     // Creates the GUD Stable ERC20 Token and sets up the Stable Wrapping Extension
     constructor(IERC20 stableToWrap_) 
-        ERC20("Gauss Stable Coin", "GUD", IERC20Metadata(address(stableToWrap_)).decimals())
+        ERC20("Gauss Stable Coin", "GUD", 18)
         ERC20Wrapper(stableToWrap_) {         
         
         _stable = stableToWrap_;
