@@ -50,6 +50,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
         // Testnet Specific Check
         if (block.chainid == 1452) {
             _isGauss = true;
+            _mint(owner(), (1000000 * 10 * decimals()));
         }
 
         else if (block.chainid == 1777) {
