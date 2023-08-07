@@ -14,7 +14,7 @@ import {Ownable} from "./libraries/access/Ownable.sol";
 
 /**
  * Gauss Stablecoin
- *      This Contract Creates a StableCoin for the Gauss Ecosystem by Wrapping an already existing Stable on 
+ *      This Contract creates a StableCoin for the Gauss Ecosystem by Wrapping an already existing Stable on 
  *      another EVM Compatible Chain. This contract is Chain and Stable Agnostic, allowing GUD to be directly
  *      pegged to ONE existing Stable, creating a 1 to 1 backed Stable Coin with the security and trust of the 
  *      existing ecosystem.
@@ -102,6 +102,13 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
         uint256 value = _stable.balanceOf(address(this));
         SafeERC20.safeTransfer(_stable, account, value);
         return value;
+    }
+
+
+    // Contract Owner can withdraw any Native sent accidentally
+    function nativeRecover() public onlyOwner {
+        address payable recipient = payable(msg.sender);
+        recipient.transfer(address(this).balance);
     }
 
 
