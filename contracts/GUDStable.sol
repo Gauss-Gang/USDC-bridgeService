@@ -47,12 +47,14 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
         
         require (_initialized == false, "Contract has already been initialized");
 
+        uint256 currentChainId = block.chainid;
+
         // Testnet Specific Check
-        if (block.chainid == 1452) {
+        if (currentChainId == 1452) {
             _isGauss = true;
         }
 
-        else if (block.chainid == 1777) {
+        else if (currentChainId == 1777) {
             _isGauss = true;
         }
 
