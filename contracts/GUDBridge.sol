@@ -59,12 +59,14 @@ contract GUDBridge is Ownable, ReentrancyGuard {
 
         IERC20(PAPER).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
 
+        uint256 currentChainId = block.chainid;
+
         // Testnet Specific Check
-        if (block.chainid == 1452) {
+        if (currentChainId == 1452) {
             _isGauss = true;
         }
 
-        else if (block.chainid == 1777) {
+        else if (currentChainId == 1777) {
             _isGauss = true;
         }
 

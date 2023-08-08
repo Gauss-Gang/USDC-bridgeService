@@ -35,7 +35,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
 
     // Creates the GUD Stable ERC20 Token and sets up the Stable Wrapping Extension
     constructor(IERC20 stableToWrap_) 
-        ERC20("Gauss Stable Coin", "GUD", IERC20Metadata(address(stableToWrap_)).decimals())
+        ERC20("Gauss Stable Coin", "GUD", 18)
         ERC20Wrapper(stableToWrap_) {         
         
         _stable = stableToWrap_;
@@ -47,13 +47,15 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
         
         require (_initialized == false, "Contract has already been initialized");
 
+        uint256 currentChainId = block.chainid;
+
         // Testnet Specific Check
-        if (block.chainid == 1452) {
+        if (currentChainId == 1452) {
             _isGauss = true;
-            _mint(owner(), (1000000 * 10 * decimals()));
+            _mint(owner(), (1000000 * 10**decimals()));
         }
 
-        else if (block.chainid == 1777) {
+        else if (currentChainId == 1777) {
             _isGauss = true;
         }
 
