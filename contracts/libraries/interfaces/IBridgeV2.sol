@@ -14,11 +14,11 @@ interface IBridgeV2 {
     function cccnft() external view returns (address);
 
     // called by sending contract
-    function sendRequest(address _recipient, uint256 _chain, uint256 _amount, address _source, bytes calldata _data) external returns (uint txId);
+    function sendRequest(address _recipient, uint256 _chain, uint256 _amount, address _source, bytes calldata _data, uint16 confirmations) external returns (uint txId);
     function sendRequestExpress(address _recipient, uint256 _chain, uint256 _amount, address _source, bytes calldata _data) external returns (uint txId);
 
     // implemented by receiving contract
-    function messageProcess(uint txId, address sender, address recipient, uint amount, bytes memory data) external;
+    function messageProcess(uint txId, uint sourceChainId, address sender, address recipient, uint amount, bytes calldata data) external;
 
     // returns the source fee in terms of PAPER (takes cccnft discounts into account)
     // (to get the destination gas fee, call the estimateGas from messageProcess on destination chain)

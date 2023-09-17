@@ -35,7 +35,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
 
     // Creates the GUD Stable ERC20 Token and sets up the Stable Wrapping Extension
     constructor(IERC20 stableToWrap_) 
-        ERC20("Gauss Stable Coin", "GUD", 18)
+        ERC20("Gauss Stable", "GUD", 6)
         ERC20Wrapper(stableToWrap_) {         
         
         _stable = stableToWrap_;
@@ -49,7 +49,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
 
         uint256 currentChainId = block.chainid;
 
-        // Testnet Specific Check
+        // Testnet Specific Check, sends 1 Million to owner for testing
         if (currentChainId == 1452) {
             _isGauss = true;
             _mint(owner(), (1000000 * 10**decimals()));
@@ -80,10 +80,28 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     }
 
 
+    // Orride to allow the Bridge to deposit stable tokens and mint the corresponding number of wrapped tokens.
+    function depositFor(address account, uint256 amount) public override virtual whenNotPaused onlyBridge returns (bool) {
+        return super.depositFor(account, amount);
+    }
+
+
+    // Ovveride to allow the Bridge to burn a number of wrapped tokens and withdraw the corresponding number of stable tokens.
+    function withdrawTo(address account, uint256 amount) public override virtual whenNotPaused onlyBridge returns (bool) {
+        return super.withdrawTo(account, amount);
+    }
+
+
     // Mint GUD on the Gauss Chain. Can only be called by the Bridge Contract
-    function mint(address to, uint256 amount) external onlyBridge {
+    function mint(address to, uint256 amount) external whenNotPaused onlyBridge {
         require(_isGauss == true, "Minting only supported on the Gauss Chain");
         _mint(to, amount);
+    }
+
+    
+    // Override transfer function to prevent transfers while paused
+    function _transfer(address sender, address recipient, uint256 amount) internal override whenNotPaused {
+        super._transfer(sender, recipient, amount);
     }
 
 
@@ -99,19 +117,19 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     }
 
 
-    // Recover all stored Stable Tokesn in the Contract in the event of a depegging emergency
+    // Recover all stored Stable Tokens in the Contract in the event of a depegging emergency
     function emergencyRecover(address account) public onlyOwner returns (uint256) {
         require(_isGauss == false, "Recovering only supported on the 'Away' Chain");
         uint256 value = _stable.balanceOf(address(this));
         SafeERC20.safeTransfer(_stable, account, value);
+        pause();
         return value;
     }
 
 
     // Contract Owner can withdraw any Native sent accidentally
-    function nativeRecover() public onlyOwner {
-        address payable recipient = payable(msg.sender);
-        recipient.transfer(address(this).balance);
+    function nativeRecover(address recoveryWallet) external onlyOwner {
+        payable(recoveryWallet).transfer(address(this).balance);
     }
 
 

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Author: Atlas (atlas@cryptolink.tech)
-// Modified: Gauss_Austin (gaussgang.com)
+// Modified: Gauss_Austin (austinm@gaussgang.com)
 // https://cryptolink.tech
 // https://anytoany.io
+// https://gaussgang.com
 
 pragma solidity =0.8.19;
 
 import "./libraries/token/SafeERC20.sol";
-import "./libraries/token/ERC20Burnable.sol";
 import "./libraries/access/Ownable.sol";
 import "./libraries/security/ReentrancyGuard.sol";
 import "./libraries/interfaces/IBridgeV2.sol";
@@ -15,21 +15,24 @@ import "./libraries/interfaces/IBridgeV2.sol";
 
 interface IGUD {
     function mint(address recipient, uint amount) external;
+    function burnFrom(address account, uint256 amount) external;
+    function depositFor(address account, uint256 amount) external;
+    function withdrawTo(address account, uint256 amount) external;
 }
 
 
 /**
- *  This is a Bridge Contract Designed to facilitate the minting and burning of the GUD Stable Token
+ *  This is a Bridge Service Contract Designed to facilitate the minting and burning of the GUD Stable Token
  *  for the Gauss Ecosystem. GUD is a Wrapped version of an existing Stable and this contract handles
- *  the messaging service between the Gauss and 'Away' Chains, 
+ *  the messaging service between Gauss and 'Away' Chains 
  *      @dev contract desinged to share same contrat address on both Away and Gauss Chains
  */
-contract GUDBridge is Ownable, ReentrancyGuard {
+contract GUDBridgeService is Ownable, ReentrancyGuard {
     address public PAPER;
     address public GUD;
+    address public USDC;
     address public BRIDGE;
 
-    uint private _chain;
     bool private _isGauss;
 
     event Recover(address to, address token, uint amount);
@@ -51,11 +54,13 @@ contract GUDBridge is Ownable, ReentrancyGuard {
      * @param _bridge Bridge address
      * @param _paper PAPER token address
      * @param _gud GUD address on Gauss (On 'Away' Chain, set to address(0))
+     * @param _usdc USDC address on Polygon (on gauss this is address(0))
      */
-    function init(address _bridge, address _paper, address _gud) external onlyOwner {
+    function init(address _bridge, address _paper, address _gud, address _usdc) external onlyOwner {
         BRIDGE = _bridge;
         PAPER  = _paper;
         GUD    = _gud;
+        USDC   = _usdc;
 
         IERC20(PAPER).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
 
@@ -77,7 +82,7 @@ contract GUDBridge is Ownable, ReentrancyGuard {
 
 
     /**
-     * @param _recipient Address to deliver gUSD (wallet or contract)
+     * @param _recipient Address to deliver GUD (wallet or contract)
      * @param _amountIn Amount of STABLE to wrap on Away Chain
      * @param _source Address of the referrer of the transaction
      * @param _express Enable express mode
@@ -86,19 +91,40 @@ contract GUDBridge is Ownable, ReentrancyGuard {
 
         require(_recipient != address(0), "recipient unknown");
 
+        uint _chain;
+
+        // TESTNET:
+        // If the 'isGauss' value is false, we know we are on the Away Chain
+        if(_isGauss == false) {
+            _chain = 1452;  // sending to Gauss
+            SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
+            IGUD(GUD).depositFor(address(this), _amountIn);
+            emit LockGUD(msg.sender, _amountIn);
+        } 
+
+        // If the 'isGauss' value is true, we know we are on the Gauss Chain
+        else if(_isGauss == true) {
+            _chain = 8001;   // sending to Away Chain
+            IGUD(GUD).burnFrom(msg.sender, _amountIn);
+            emit BurnGUD(msg.sender, _amountIn);
+        }
+
+        /* MAINNET:
         // If the 'isGauss' value is false, we know we are on the Away Chain
         if(_isGauss == false) {
             _chain = 1777;  // sending to Gauss
-            SafeERC20.safeTransferFrom(IERC20(GUD), msg.sender, address(this), _amountIn);
+            SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
+            IGUD(GUD).depositFor(msg.sender, _amountIn);
             emit LockGUD(msg.sender, _amountIn);
         } 
 
         // If the 'isGauss' value is true, we know we are on the Gauss Chain
         else if(_isGauss == true) {
             _chain = 137;   // sending to Away Chain
-            ERC20Burnable(GUD).burnFrom(msg.sender, _amountIn);
+            IGUD(GUD).burnFrom(msg.sender, _amountIn);
             emit BurnGUD(msg.sender, _amountIn);
-        } 
+        }
+        */
 
         else {
             revert("invalid configuration");
@@ -106,7 +132,7 @@ contract GUDBridge is Ownable, ReentrancyGuard {
 
         bytes memory _packageData = abi.encode(
             _recipient,     // actual recipient
-            _amountIn,      // amount of tokens wrapped(stable) or burned (gusd)
+            _amountIn,      // amount of tokens wrapped(stable) or burned (GUD)
             _source         // address who refered the traffic
         );
 
@@ -126,7 +152,8 @@ contract GUDBridge is Ownable, ReentrancyGuard {
                 _chain,         // id of the destination chain
                 100 ether,      // paper amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
-                _packageData    // encoded data to be processed by this contract on Gauss
+                _packageData,   // encoded data to be processed by this contract on Gauss
+                4              // number of confirmations before validating
             );
         }
 
@@ -135,7 +162,7 @@ contract GUDBridge is Ownable, ReentrancyGuard {
 
 
     // BRIDGE ACCESS ONLY
-    function messageProcess(uint, address _sender, address _recipient, uint, bytes calldata _packageData) external nonReentrant onlyBridge {
+    function messageProcess(uint,uint, address _sender, address _recipient, uint, bytes calldata _packageData) external nonReentrant onlyBridge {
         require(_sender == address(this), "wrong address");     // @dev reminder: contract addresses must match on both Away and Gauss Chains
 
         /*  This grabs the FINAL recipient and the FINAL data from the _packageData,
@@ -149,7 +176,7 @@ contract GUDBridge is Ownable, ReentrancyGuard {
 
         if(_isGauss == false) {            
             // We are on Away Chain
-            SafeERC20.safeTransfer(IERC20(GUD), _recipient, _amountIn);
+            IGUD(GUD).withdrawTo(_recipient, _amountIn);
             emit UnlockGUD(msg.sender, _amountIn);
         } 
         
@@ -165,25 +192,29 @@ contract GUDBridge is Ownable, ReentrancyGuard {
     }
 
 
-    function recover(address _token, uint256 _amount, address _to) external onlyOwner {
-        require(_to != address(0), "cannot send to zero address");
-        
-        if(_token == address(0)) {
-          
-          //    @TODO
-          //  (bool _sent, ) = msg.sender.call{ value: address(this).balance }("");
-        }
-        
-        else {
-            IERC20(_token).transfer(_to, _amount);
-        }
-
-        emit Recover(_to, _token, _amount);
-    }    
-
-
     function updateBridge(address _bridge) external onlyOwner {
         BRIDGE = _bridge;
         emit UpdateBridge(_bridge);
+    }
+
+
+    /* Withdrawl any ERC20 Token that are accidentally sent to this contract
+            WARNING:    Interacting with unsafe tokens or smart contracts can 
+                        result in stolen private keys, loss of funds, and drained
+                        wallets. Use this function with trusted Tokens/Contracts only
+    */
+    function withdrawERC20(address tokenAddress, address recoveryWallet) external onlyOwner {
+        IERC20 token = IERC20(tokenAddress);
+        uint256 balance = token.balanceOf(address(this));
+        require(balance > 0, "No tokens to withdraw");
+
+        token.transfer(recoveryWallet, balance);
+        emit Recover(recoveryWallet, tokenAddress, balance);  
+    }
+
+
+    // Contract Owner can withdraw any Native sent accidentally
+    function nativeRecover(address recoveryWallet) external onlyOwner() {
+        payable(recoveryWallet).transfer(address(this).balance);
     }
 }
