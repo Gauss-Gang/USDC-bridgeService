@@ -47,7 +47,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
 
     // Testnet:
     uint private constant _gaussChainID = 1452;
-    uint private constant _polygonChainID = 8001;
+    uint private constant _polygonChainID = 80001;
 
     event Recover(address to, address token, uint amount);
     event UpdateBridge(address bridge);
