@@ -5,7 +5,7 @@
 // https://anytoany.io
 // https://gaussgang.com
 
-pragma solidity =0.8.19;
+pragma solidity =0.8.21;
 
 import "./libraries/token/SafeERC20.sol";
 import "./libraries/access/Ownable.sol";
@@ -36,6 +36,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
 
     bool private _isGauss;
     bool private _initialized = false;
+
     uint256 private _paperAmount = 100 ether;
     uint16 private _confirmations = 4;
 
