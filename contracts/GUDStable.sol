@@ -32,13 +32,25 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
         _;
     }
 
+    // Event emitted when the GUD tokens are minted
+    event Minted(address indexed to, uint256 amount);
+
+    // Event emitted when Stable tokens are deposited
+    event Deposited(address indexed from, uint256 amount);
+
+    // Event emitted when Stable tokens are withdrawn
+    event Withdrawn(address indexed from, uint256 amount);
+
+    // Event emitted when the GUD Bridge address is updated
+    event BridgeUpdated(address newBridge);
+
 
     // Creates the GUD Stable ERC20 Token and sets up the Stable Wrapping Extension
-    constructor(IERC20 stableToWrap_) 
+    constructor(address stableToWrap) 
         ERC20("Gauss Stable", "GUD", 6)
-        ERC20Wrapper(stableToWrap_) {         
-        
-        _stable = stableToWrap_;
+        ERC20Wrapper((IERC20(stableToWrap))) {         
+
+        _stable = IERC20(stableToWrap);
     }
 
 
@@ -68,34 +80,49 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     }
 
 
+    // Fallback function to allow the contract to receives Native Currency 
+    receive() external payable {}
+    
+
     // Pause Token Trading and Transfers
     function pause() public onlyOwner {
-        _pause();
+        super._pause();
     }
 
 
     // Unpause Token Trading and Transfers
     function unpause() public onlyOwner {
-        _unpause();
+        super._unpause();
     }
 
 
     // Orride to allow the Bridge to deposit stable tokens and mint the corresponding number of wrapped tokens.
     function depositFor(address account, uint256 amount) public override virtual whenNotPaused onlyBridge returns (bool) {
-        return super.depositFor(account, amount);
+        
+        bool depositSuccess = super.depositFor(account, amount);
+        
+        if (depositSuccess == true) { emit Deposited(account, amount); }
+        
+        return depositSuccess;
     }
 
 
     // Ovveride to allow the Bridge to burn a number of wrapped tokens and withdraw the corresponding number of stable tokens.
     function withdrawTo(address account, uint256 amount) public override virtual whenNotPaused onlyBridge returns (bool) {
-        return super.withdrawTo(account, amount);
+        
+        bool withdrawSuccess = super.withdrawTo(account, amount);
+        
+        if (withdrawSuccess == true) { emit Deposited(account, amount); }
+        
+        return withdrawSuccess;
     }
 
 
     // Mint GUD on the Gauss Chain. Can only be called by the Bridge Contract
     function mint(address to, uint256 amount) external whenNotPaused onlyBridge {
         require(_isGauss == true, "Minting only supported on the Gauss Chain");
-        _mint(to, amount);
+        super._mint(to, amount);
+        emit Minted(to, amount);
     }
 
     
@@ -108,12 +135,13 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     // Update GUD Bridge Address
     function updateBridge(address bridgeAddress) external onlyOwner {
         gudBridge = bridgeAddress;
+        emit BridgeUpdated(bridgeAddress);
     }
 
 
     // Mint wrapped token to cover any Stable Tokens that may have been transferred by mistake
     function accidentalRecover(address account) public onlyOwner returns (uint256) {
-        return _recover(account);
+        return super._recover(account);
     }
 
 

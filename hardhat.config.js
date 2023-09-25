@@ -25,7 +25,7 @@ module.exports = {
   },
   networks: {
     gaussTestnet: {
-      url: "https://rpc.giltestnet.com	",
+      url: "https://rpc.giltestnet.com",
       chainId: 1452,
       accounts: {mnemonic: mnemonic}
     },
@@ -43,6 +43,9 @@ module.exports = {
       url: "https://polygon-bor.publicnode.com",
       chainId: 137,
       accounts: {mnemonic: mnemonic}
+    },
+    hardhat: {
+      chainId: 1452
     }
   }
 };

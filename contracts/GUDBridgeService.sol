@@ -145,7 +145,8 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
                 _chain,         // id of the destination chain
                 _paperAmount,   // paper amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
-                _packageData    // encoded data to be processed by this contract on Gauss
+                _packageData,    // encoded data to be processed by this contract on Gauss
+                _confirmations  // number of confirmations before validating
             );
         } 
 
@@ -195,7 +196,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
     }
 
 
-    // Update the bridge address and approve the new bridge to transfer Paper
+    // Update the Paper Bridge address and approve the new bridge to transfer Paper
     function updateBridge(address _newBridge) external onlyOwner {
         IERC20(PAPER).approve(BRIDGE, 0);
         BRIDGE = _newBridge;

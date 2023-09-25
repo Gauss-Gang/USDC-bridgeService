@@ -33,10 +33,12 @@ abstract contract ERC20Wrapper is ERC20 {
 
     // Allow a user to deposit stable tokens and mint the corresponding number of wrapped tokens.
     function depositFor(address account, uint256 amount) public virtual returns (bool) {
-        
-        address sender = _msgSender();        
+
+        address sender = _msgSender();
+
         require(sender != address(this), "GUDStable: can't deposit from self");
-        
+        require(account != address(this), "GUDStable: can't deposit to self");
+
         SafeERC20.safeTransferFrom(_stable, sender, address(this), amount);
         _mint(account, amount);
 
@@ -46,8 +48,12 @@ abstract contract ERC20Wrapper is ERC20 {
 
     // Allow a user to burn a number of wrapped tokens and withdraw the corresponding number of stable tokens.
     function withdrawTo(address account, uint256 amount) public virtual returns (bool) {
+        
+        require(account != address(this), "GUDStable: can't withdraw to self");
+        
         _burn(_msgSender(), amount);
         SafeERC20.safeTransfer(_stable, account, amount);
+        
         return true;
     }
 
