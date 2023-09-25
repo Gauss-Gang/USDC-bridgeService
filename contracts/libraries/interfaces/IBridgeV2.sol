@@ -15,7 +15,7 @@ interface IBridgeV2 {
 
     // called by sending contract
     function sendRequest(address _recipient, uint256 _chain, uint256 _amount, address _source, bytes calldata _data, uint16 confirmations) external returns (uint txId);
-    function sendRequestExpress(address _recipient, uint256 _chain, uint256 _amount, address _source, bytes calldata _data) external returns (uint txId);
+    function sendRequestExpress(address _recipient, uint256 _chain, uint256 _amount, address _source, bytes calldata _data, uint16 confirmations) external returns (uint txId);
 
     // implemented by receiving contract
     function messageProcess(uint txId, uint sourceChainId, address sender, address recipient, uint amount, bytes calldata data) external;

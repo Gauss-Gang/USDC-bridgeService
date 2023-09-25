@@ -5,7 +5,7 @@
 // https://anytoany.io
 // https://gaussgang.com
 
-pragma solidity =0.8.19;
+pragma solidity =0.8.21;
 
 import "./libraries/token/SafeERC20.sol";
 import "./libraries/access/Ownable.sol";
@@ -13,6 +13,7 @@ import "./libraries/security/ReentrancyGuard.sol";
 import "./libraries/interfaces/IBridgeV2.sol";
 
 
+// Interface for the GUD token
 interface IGUD {
     function mint(address recipient, uint amount) external;
     function burnFrom(address account, uint256 amount) external;
@@ -34,18 +35,38 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
     address public BRIDGE;
 
     bool private _isGauss;
+    bool private _initialized = false;
+
+    uint256 private _paperAmount = 100 ether;
+    uint16 private _confirmations = 4;
+
+    /* Mainnet:
+    uint private constant _gaussChainID = 1777;
+    uint private constant _polygonChainID = 137;
+    */
+
+    // Testnet:
+    uint private constant _gaussChainID = 1452;
+    uint private constant _polygonChainID = 80001;
 
     event Recover(address to, address token, uint amount);
     event UpdateBridge(address bridge);
+    event UpdatePaperAmount(uint256 amount);
+    event UpdateConfirmations(uint16 amount);
     event MintGUD(address to, uint amount);
     event BurnGUD(address to, uint amount);
     event UnlockGUD(address to, uint amount);
     event LockGUD(address from, uint amount);
 
+
     modifier onlyBridge {
         require(msg.sender == BRIDGE, "not authorized");
         _;
     }
+
+    
+    // This function allows the contract to receives Native Currency 
+    receive() external payable {}
 
 
     /**
@@ -57,27 +78,27 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
      * @param _usdc USDC address on Polygon (on gauss this is address(0))
      */
     function init(address _bridge, address _paper, address _gud, address _usdc) external onlyOwner {
+        
+        require(_initialized == false, "Contract has previously been initialized");
+        
         BRIDGE = _bridge;
         PAPER  = _paper;
         GUD    = _gud;
         USDC   = _usdc;
 
+        // Approve BRIDGE for PAPER token transfers
         IERC20(PAPER).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
 
         uint256 currentChainId = block.chainid;
 
-        // Testnet Specific Check
-        if (currentChainId == 1452) {
+        if (currentChainId == _gaussChainID) {
             _isGauss = true;
         }
-
-        else if (currentChainId == 1777) {
-            _isGauss = true;
-        }
-
         else {
             _isGauss = false;
         }
+
+        _initialized = true;
     }
 
 
@@ -93,10 +114,9 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
 
         uint _chain;
 
-        // TESTNET:
         // If the 'isGauss' value is false, we know we are on the Away Chain
         if(_isGauss == false) {
-            _chain = 1452;  // sending to Gauss
+            _chain = _gaussChainID;  // sending to Gauss Chain
             SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
             IGUD(GUD).depositFor(address(this), _amountIn);
             emit LockGUD(msg.sender, _amountIn);
@@ -104,27 +124,10 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
 
         // If the 'isGauss' value is true, we know we are on the Gauss Chain
         else if(_isGauss == true) {
-            _chain = 8001;   // sending to Away Chain
+            _chain = _polygonChainID;   // sending to Polygon Chain
             IGUD(GUD).burnFrom(msg.sender, _amountIn);
             emit BurnGUD(msg.sender, _amountIn);
         }
-
-        /* MAINNET:
-        // If the 'isGauss' value is false, we know we are on the Away Chain
-        if(_isGauss == false) {
-            _chain = 1777;  // sending to Gauss
-            SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
-            IGUD(GUD).depositFor(msg.sender, _amountIn);
-            emit LockGUD(msg.sender, _amountIn);
-        } 
-
-        // If the 'isGauss' value is true, we know we are on the Gauss Chain
-        else if(_isGauss == true) {
-            _chain = 137;   // sending to Away Chain
-            IGUD(GUD).burnFrom(msg.sender, _amountIn);
-            emit BurnGUD(msg.sender, _amountIn);
-        }
-        */
 
         else {
             revert("invalid configuration");
@@ -140,9 +143,10 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
             _txId = IBridgeV2(BRIDGE).sendRequestExpress(
                 address(this),  // recipient is the corresponding destination deploy of this contract, deployed contract addresses must match!
                 _chain,         // id of the destination chain
-                100 ether,      // paper amount, just min so gas/tx fees are paid - desination contract gets the change
+                _paperAmount,   // paper amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
-                _packageData    // encoded data to be processed by this contract on Gauss
+                _packageData,    // encoded data to be processed by this contract on Gauss
+                _confirmations  // number of confirmations before validating
             );
         } 
 
@@ -150,10 +154,10 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
             _txId = IBridgeV2(BRIDGE).sendRequest(
                 address(this),  // recipient is the corresponding destination deploy of this contract, deployed contract addresses must match!
                 _chain,         // id of the destination chain
-                100 ether,      // paper amount, just min so gas/tx fees are paid - desination contract gets the change
+                _paperAmount,   // paper amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
                 _packageData,   // encoded data to be processed by this contract on Gauss
-                4              // number of confirmations before validating
+                _confirmations  // number of confirmations before validating
             );
         }
 
@@ -165,7 +169,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
     function messageProcess(uint,uint, address _sender, address _recipient, uint, bytes calldata _packageData) external nonReentrant onlyBridge {
         require(_sender == address(this), "wrong address");     // @dev reminder: contract addresses must match on both Away and Gauss Chains
 
-        /*  This grabs the FINAL recipient and the FINAL data from the _packageData,
+        /*  Extracts the FINAL recipient and the FINAL data from _packageData,
             which is set on the source chain for the address calling this contract
 
                 @dev _recipient above is "us" so we unwrap and override here with next level _recipient
@@ -192,9 +196,26 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
     }
 
 
-    function updateBridge(address _bridge) external onlyOwner {
-        BRIDGE = _bridge;
-        emit UpdateBridge(_bridge);
+    // Update the Paper Bridge address and approve the new bridge to transfer Paper
+    function updateBridge(address _newBridge) external onlyOwner {
+        IERC20(PAPER).approve(BRIDGE, 0);
+        BRIDGE = _newBridge;
+        IERC20(PAPER).approve(_newBridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        emit UpdateBridge(_newBridge);
+    }
+
+
+    // Update the paper amount for minimum gas/tx fee payment
+    function updatePaperAmount(uint256 _amount) external onlyOwner {
+        _paperAmount = _amount;
+        emit UpdatePaperAmount(_amount);
+    }
+
+
+    // Update the number of confirmations required before validating
+    function updateConfirmations(uint16 _numConfirmations) external onlyOwner {
+        _confirmations = _numConfirmations;
+        emit UpdateConfirmations(_numConfirmations);
     }
 
 
