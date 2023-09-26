@@ -5,7 +5,7 @@
 // https://anytoany.io
 // https://gaussgang.com
 
-pragma solidity =0.8.21;
+pragma solidity =0.8.19;
 
 import "./libraries/token/SafeERC20.sol";
 import "./libraries/access/Ownable.sol";
