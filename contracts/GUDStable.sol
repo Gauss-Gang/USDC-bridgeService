@@ -28,7 +28,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     address public gudBridge;
 
     modifier onlyBridge {
-        require(msg.sender == gudBridge, "Address not authorized");
+        require(_msgSender() == gudBridge, "Address not authorized");
         _;
     }
 
@@ -44,6 +44,9 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     // Event emitted when the GUD Bridge address is updated
     event BridgeUpdated(address newBridge);
 
+    // Event emitted when GUD is Minted after the Stable Coin
+    // being Wrapped is sent directly to this contract by accident
+    event AccidentalRecover(uint256 amount, address recoveryAddress);
 
     // Creates the GUD Stable ERC20 Token and sets up the Stable Wrapping Extension
     constructor(address stableToWrap) 
@@ -96,7 +99,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     }
 
 
-    // Orride to allow the Bridge to deposit stable tokens and mint the corresponding number of wrapped tokens.
+    // Override to allow the Bridge to deposit stable tokens and mint the corresponding number of wrapped tokens.
     function depositFor(address account, uint256 amount) public override virtual whenNotPaused onlyBridge returns (bool) {
         
         bool depositSuccess = super.depositFor(account, amount);
@@ -107,7 +110,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     }
 
 
-    // Ovveride to allow the Bridge to burn a number of wrapped tokens and withdraw the corresponding number of stable tokens.
+    // Override to allow the Bridge to burn a number of wrapped tokens and withdraw the corresponding number of stable tokens.
     function withdrawTo(address account, uint256 amount) public override virtual whenNotPaused onlyBridge returns (bool) {
         
         bool withdrawSuccess = super.withdrawTo(account, amount);
@@ -141,7 +144,9 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
 
     // Mint wrapped token to cover any Stable Tokens that may have been transferred by mistake
     function accidentalRecover(address account) public onlyOwner returns (uint256) {
-        return super._recover(account);
+        uint256 amountRecovered = super._recover(account);
+        emit AccidentalRecover(amountRecovered, account);
+        return amountRecovered;
     }
 
 

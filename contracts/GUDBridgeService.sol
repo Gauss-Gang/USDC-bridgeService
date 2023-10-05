@@ -118,6 +118,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
         if(_isGauss == false) {
             _chain = _gaussChainID;  // sending to Gauss Chain
             SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
+            IERC20(USDC).approve(GUD, _amountIn);
             IGUD(GUD).depositFor(address(this), _amountIn);
             emit LockGUD(msg.sender, _amountIn);
         } 
