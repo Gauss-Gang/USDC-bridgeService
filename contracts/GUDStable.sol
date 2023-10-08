@@ -17,7 +17,9 @@ import {Ownable} from "./libraries/access/Ownable.sol";
  *      This Contract creates a StableCoin for the Gauss Ecosystem by Wrapping an already existing Stable on 
  *      another EVM Compatible Chain. This contract is Chain and Stable Agnostic, allowing GUD to be directly
  *      pegged to ONE existing Stable, creating a 1 to 1 backed Stable Coin with the security and trust of the 
- *      existing ecosystem.
+ *      existing ecosystem. This particular contract is set up to use USDC on Polygon, wrap it, and mint at 
+ *      a 1:1 ratio. Only the GUDBridgeService can depost or withdrawl Stable Coins. 
+ *      
 */
 contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
 
@@ -48,6 +50,11 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     // being Wrapped is sent directly to this contract by accident
     event AccidentalRecover(uint256 amount, address recoveryAddress);
 
+    // Event emitted when an ERC20 token has been sent to this address
+    // by accident, such as the wrong Stable Coin
+    event Recover(address to, address token, uint amount);
+
+
     // Creates the GUD Stable ERC20 Token and sets up the Stable Wrapping Extension
     constructor(address stableToWrap) 
         ERC20("Gauss Stable", "GUD", 6)
@@ -64,13 +71,7 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
 
         uint256 currentChainId = block.chainid;
 
-        // Testnet Specific Check, sends 1 Million to owner for testing
-        if (currentChainId == 1452) {
-            _isGauss = true;
-            _mint(owner(), (1000000 * 10**decimals()));
-        }
-
-        else if (currentChainId == 1777) {
+        if (currentChainId == 1777) {
             _isGauss = true;
         }
 
@@ -163,6 +164,21 @@ contract GUDStable is ERC20, ERC20Burnable, Pausable, Ownable, ERC20Wrapper {
     // Contract Owner can withdraw any Native sent accidentally
     function nativeRecover(address recoveryWallet) external onlyOwner {
         payable(recoveryWallet).transfer(address(this).balance);
+    }
+
+
+    /* Withdrawl any ERC20 Token that are accidentally sent to this contract
+            WARNING:    Interacting with unsafe tokens or smart contracts can 
+                        result in stolen private keys, loss of funds, and drained
+                        wallets. Use this function with trusted Tokens/Contracts only.
+    */
+    function withdrawERC20(address tokenAddress, address recoveryWallet) external onlyOwner {
+        IERC20 token = IERC20(tokenAddress);
+        uint256 balance = token.balanceOf(address(this));
+        require(balance > 0, "No tokens to withdraw");
+
+        token.transfer(recoveryWallet, balance);
+        emit Recover(recoveryWallet, tokenAddress, balance);  
     }
 
 
