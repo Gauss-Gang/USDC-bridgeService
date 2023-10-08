@@ -45,7 +45,7 @@ module.exports = {
       accounts: {mnemonic: mnemonic}
     },
     hardhat: {
-      chainId: 1452
+      chainId: 1777
     }
   }
 };

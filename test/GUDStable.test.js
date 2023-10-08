@@ -28,19 +28,19 @@ describe('GUDStable Contract Tests', function () {
   });
 
 
-  it('Should initialize the contract correctly on Gauss testnet', async function () {
+  it('Should initialize the contract correctly on Gauss Mainnet', async function () {
     // Call init with addr1 as the bridge address
     await gudStable.init(addr1.address);
 
     // Check if the contract correctly identifies the chain as Gauss
-    expect((await ethers.provider.getNetwork()).chainId).to.equal(1452);
+    expect((await ethers.provider.getNetwork()).chainId).to.equal(1777);
     expect(await gudStable._isGauss()).to.equal(true);
     expect(await gudStable.gudBridge()).to.equal(addr1.address);
     expect(await gudStable._initialized()).to.equal(true);
   });
 
 
-  it('Should initialize the contract correctly on Polygon testnet', async function () {
+  it('Should initialize the contract correctly on Polygon', async function () {
     // Call init with addr1 as the bridge address
     await gudStable.init(addr1.address);
 
