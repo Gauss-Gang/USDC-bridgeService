@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Author: Atlas (atlas@cryptolink.tech)
-// Modified: Gauss_Austin (austinm@gaussgang.com)
-// https://cryptolink.tech
-// https://anytoany.io
-// https://gaussgang.com
+// Authors: 
+//      Atlas (atlas@cryptolink.tech) - https://cryptolink.tech
+//      Gauss_Austin (austinm@gaussgang.com) - https://gaussgang.com
 
 pragma solidity =0.8.19;
 
@@ -13,44 +11,48 @@ import "./libraries/security/ReentrancyGuard.sol";
 import "./libraries/interfaces/IBridgeV2.sol";
 
 
-// Interface for the GUD token
-interface IGUD {
+// Interface for the USDC.g token
+interface IUSDCg {
     function mint(address recipient, uint amount) external;
-    function burnFrom(address account, uint256 amount) external;
-    function depositFor(address account, uint256 amount) external;
-    function withdrawTo(address account, uint256 amount) external;
+    function burn(uint256 amount) external;
 }
 
 
 /**
- *  This is a Bridge Service Contract Designed to facilitate the minting and burning of the GUD Stable Token
- *  for the Gauss Ecosystem. GUD is a Wrapped version of an existing Stable and this contract handles
- *  the messaging service between Gauss and 'Away' Chains 
+ *  This is a Bridge Service Contract Designed to facilitate the minting and burning of the USDC.g (Gauss) Stable Coin
+ *  for the Gauss Ecosystem. USDC.g is a Wrapped version of native USDC on the Polygon Chain and this contract handles
+ *  the messaging service between Gauss and Polygon
  *      @dev contract desinged to share same contrat address on both Away and Gauss Chains
  */
-contract GUDBridgeService is Ownable, ReentrancyGuard {
-    address public PAPER;
-    address public GUD;
+contract USDCgBridgeService is Ownable, ReentrancyGuard {
+    address public FeeToken;
+    address public USDCg;
     address public USDC;
     address public BRIDGE;
 
     bool private _isGauss;
     bool private _initialized = false;
 
-    uint256 private _paperAmount = 100 ether;
+    uint256 private _feeAmount = 50 ether;
     uint16 private _confirmations = 4;
 
+    // Testnet
+    uint private constant _gaussChainID = 1452;
+    uint private constant _polygonChainID = 80001;
+
+/*    // Mainnet
     uint private constant _gaussChainID = 1777;
     uint private constant _polygonChainID = 137;
-
+*/
     event Recover(address to, address token, uint amount);
     event UpdateBridge(address bridge);
-    event UpdatePaperAmount(uint256 amount);
+    event UpdateFeeToken(address feeToken);
+    event UpdateFeeAmount(uint256 amount);
     event UpdateConfirmations(uint16 amount);
-    event MintGUD(address to, uint amount);
-    event BurnGUD(address to, uint amount);
-    event UnlockGUD(address to, uint amount);
-    event LockGUD(address from, uint amount);
+    event MintUSDCg(address to, uint amount);
+    event BurnUSDCg(address to, uint amount);
+    event UnlockUSDCg(address to, uint amount);
+    event LockUSDCg(address from, uint amount);
 
 
     modifier onlyBridge {
@@ -67,21 +69,21 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
      * Called after deploy to set contract addresses.
      *
      * @param _bridge Bridge address
-     * @param _paper PAPER token address
-     * @param _gud GUD address on Gauss (On 'Away' Chain, set to address(0))
+     * @param _feeToken Fee token address
+     * @param _usdcG USDCg address on Gauss (On 'Away' Chain, set to address(0))
      * @param _usdc USDC address on Polygon (on gauss this is address(0))
      */
-    function init(address _bridge, address _paper, address _gud, address _usdc) external onlyOwner {
+    function init(address _bridge, address _feeToken, address _usdcG, address _usdc) external onlyOwner {
         
         require(_initialized == false, "Contract has previously been initialized");
         
         BRIDGE = _bridge;
-        PAPER  = _paper;
-        GUD    = _gud;
+        FeeToken  = _feeToken;
+        USDCg    = _usdcG;
         USDC   = _usdc;
 
-        // Approve BRIDGE for PAPER token transfers
-        IERC20(PAPER).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        // Approve BRIDGE for Fee token transfers
+        IERC20(FeeToken).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
 
         uint256 currentChainId = block.chainid;
 
@@ -97,7 +99,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
 
 
     /**
-     * @param _recipient Address to deliver GUD (wallet or contract)
+     * @param _recipient Address to deliver USDCg (wallet or contract)
      * @param _amountIn Amount of STABLE to wrap on Away Chain
      * @param _source Address of the referrer of the transaction
      * @param _express Enable express mode
@@ -112,16 +114,15 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
         if(_isGauss == false) {
             _chain = _gaussChainID;  // sending to Gauss Chain
             SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
-            IERC20(USDC).approve(GUD, _amountIn);
-            IGUD(GUD).depositFor(address(this), _amountIn);
-            emit LockGUD(msg.sender, _amountIn);
+            emit LockUSDCg(msg.sender, _amountIn);
         } 
 
         // If the 'isGauss' value is true, we know we are on the Gauss Chain
         else if(_isGauss == true) {
             _chain = _polygonChainID;   // sending to Polygon Chain
-            IGUD(GUD).burnFrom(msg.sender, _amountIn);
-            emit BurnGUD(msg.sender, _amountIn);
+            SafeERC20.safeTransferFrom(IERC20(USDCg), msg.sender, address(this), _amountIn);
+            IUSDCg(USDCg).burn(_amountIn);
+            emit BurnUSDCg(msg.sender, _amountIn);
         }
 
         else {
@@ -130,7 +131,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
 
         bytes memory _packageData = abi.encode(
             _recipient,     // actual recipient
-            _amountIn,      // amount of tokens wrapped(stable) or burned (GUD)
+            _amountIn,      // amount of tokens wrapped(stable) or burned (USDCg)
             _source         // address who refered the traffic
         );
 
@@ -138,9 +139,9 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
             _txId = IBridgeV2(BRIDGE).sendRequestExpress(
                 address(this),  // recipient is the corresponding destination deploy of this contract, deployed contract addresses must match!
                 _chain,         // id of the destination chain
-                _paperAmount,   // paper amount, just min so gas/tx fees are paid - desination contract gets the change
+                _feeAmount,     // fee amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
-                _packageData,    // encoded data to be processed by this contract on Gauss
+                _packageData,   // encoded data to be processed by this contract on Gauss
                 _confirmations  // number of confirmations before validating
             );
         } 
@@ -149,7 +150,7 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
             _txId = IBridgeV2(BRIDGE).sendRequest(
                 address(this),  // recipient is the corresponding destination deploy of this contract, deployed contract addresses must match!
                 _chain,         // id of the destination chain
-                _paperAmount,   // paper amount, just min so gas/tx fees are paid - desination contract gets the change
+                _feeAmount,     // fee amount, just min so gas/tx fees are paid - desination contract gets the change
                 _source,        // "source"
                 _packageData,   // encoded data to be processed by this contract on Gauss
                 _confirmations  // number of confirmations before validating
@@ -174,15 +175,15 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
         (_recipient, _amountIn, _source) = abi.decode(_packageData, (address, uint, address));
 
         if(_isGauss == false) {            
-            // We are on Away Chain
-            IGUD(GUD).withdrawTo(_recipient, _amountIn);
-            emit UnlockGUD(msg.sender, _amountIn);
+            // We are on Polygon Chain
+            SafeERC20.safeTransferFrom(IERC20(USDC), address(this), _recipient, _amountIn);
+            emit UnlockUSDCg(msg.sender, _amountIn);
         } 
         
         else if(_isGauss == true) {            
             // We are on Gauss Chain
-            IGUD(GUD).mint(_recipient, _amountIn);
-            emit MintGUD(msg.sender, _amountIn);
+            IUSDCg(USDCg).mint(_recipient, _amountIn);
+            emit MintUSDCg(msg.sender, _amountIn);
         }
         
         else {
@@ -191,19 +192,28 @@ contract GUDBridgeService is Ownable, ReentrancyGuard {
     }
 
 
-    // Update the Paper Bridge address and approve the new bridge to transfer Paper
+    // Update the Paper Bridge address and approve the new bridge to transfer the Fee Token
     function updateBridge(address _newBridge) external onlyOwner {
-        IERC20(PAPER).approve(BRIDGE, 0);
+        IERC20(FeeToken).approve(BRIDGE, 0);
         BRIDGE = _newBridge;
-        IERC20(PAPER).approve(_newBridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        IERC20(FeeToken).approve(_newBridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
         emit UpdateBridge(_newBridge);
     }
 
 
-    // Update the paper amount for minimum gas/tx fee payment
-    function updatePaperAmount(uint256 _amount) external onlyOwner {
-        _paperAmount = _amount;
-        emit UpdatePaperAmount(_amount);
+    // Update the Fee Token and approve the bridge to transfer the new Token
+    function updateFeeToken(address _newFeeToken) external onlyOwner {
+        IERC20(FeeToken).approve(BRIDGE, 0);
+        FeeToken = _newFeeToken;
+        IERC20(_newFeeToken).approve(BRIDGE, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        emit UpdateFeeToken(_newFeeToken);
+    }
+
+
+    // Update the Fee amount for minimum gas/tx fee payment
+    function updateFeeAmount(uint256 _amount) external onlyOwner {
+        _feeAmount = _amount;
+        emit UpdateFeeAmount(_amount);
     }
 
 
