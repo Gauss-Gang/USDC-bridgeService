@@ -1,10 +1,10 @@
-# USDC.g Bridge Service
+# USDC.pol Bridge Service
 
 ## Overview
-The USDC.g Bridge Service Contract is a smart contract designed to facilitate the cross-chain bridging of Native Polygon USDC (<a href="https://polygonscan.com/token/0x3c499c542cef5e3811e1192ce70d8cc03d5c3359" target="_blank">0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359</a>) into Bridged USDC.g on the Gauss Chain. 
+The USDC.pol Bridge Service Contract is a smart contract designed to facilitate the cross-chain bridging of Native Polygon USDC (<a href="https://polygonscan.com/token/0x3c499c542cef5e3811e1192ce70d8cc03d5c3359" target="_blank">0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359</a>) into Bridged USDC.pol on the Gauss Chain. 
 
 ## Features
-- **Cross-Chain Bridging:** The contract facilitates the minting and burning of USDC.g for the Gauss Ecosystem, allowing users to move USDC.g between the Polygon Chain and the Gauss Chain.
+- **Cross-Chain Bridging:** The contract facilitates the minting and burning of USDC.pol for the Gauss Ecosystem, allowing users to move USDC.pol between the Polygon Chain and the Gauss Chain.
 
 - **Express Mode:** Users can enable express mode for faster transactions with minimal fees.
 
@@ -16,13 +16,13 @@ The USDC.g Bridge Service Contract is a smart contract designed to facilitate th
 The contract is intended to be deployed to the same address on both the Polygon Chain and the Gauss Chain. The chain itself determines the direction of the bridging process.
 
 ## Usage
-Users can interact with the USDC.g Bridge Service Contract through <a href="https://nobleswap.io">NobleSwap</a>. The steps involved in bridging USDC.g are as follows:
+Users can interact with the USDC.pol Bridge Service Contract through <a href="https://nobleswap.io">NobleSwap</a>. The steps involved in bridging USDC.pol are as follows:
 
-1. **Initiate Bridging:** Users send their Native Polygon USDC to the contract address on the Polygon Chain or Bridged USDC.g to the contract address on the Gauss Chain, depending on the desired direction.
+1. **Initiate Bridging:** Users send their Native Polygon USDC to the contract address on the Polygon Chain or Bridged USDC.pol to the contract address on the Gauss Chain, depending on the desired direction.
 
 2. **Transaction Confirmation:** The contract confirms the receipt of funds and initiates the corresponding minting or burning process based on the direction.
 
-3. **Cross-Chain Transfer:** The minted USDC.g is transferred to the user's address on the destination chain.
+3. **Cross-Chain Transfer:** The minted USDC.pol is transferred to the user's address on the destination chain.
 
 4. **Express Mode (Optional):** Users can enable express mode for faster transactions with minimal fees.
 
