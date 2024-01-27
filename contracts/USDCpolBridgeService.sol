@@ -11,48 +11,43 @@ import "./libraries/security/ReentrancyGuard.sol";
 import "./libraries/interfaces/IBridgeV2.sol";
 
 
-// Interface for the USDC.g token
-interface IUSDCg {
+// Interface for the USDC.pol token
+interface IUSDCpol {
     function mint(address recipient, uint amount) external;
     function burn(uint256 amount) external;
 }
 
 
 /**
- *  This is a Bridge Service Contract Designed to facilitate the minting and burning of the USDC.g (Gauss) Stable Coin
- *  for the Gauss Ecosystem. USDC.g is a Wrapped version of native USDC on the Polygon Chain and this contract handles
+ *  This is a Bridge Service Contract Designed to facilitate the minting and burning of the Bridged USDC (Gauss) - USDC.pol stable 
+ *  coin for the Gauss Ecosystem. USDC.pol is a Wrapped version of native USDC on the Polygon Chain and this contract handles
  *  the messaging service between Gauss and Polygon
  *      @dev contract desinged to share same contrat address on both Away and Gauss Chains
  */
-contract USDCgBridgeService is Ownable, ReentrancyGuard {
+contract USDCpolBridgeService is Ownable, ReentrancyGuard {
     address public FeeToken;
-    address public USDCg;
+    address public USDCpol;
     address public USDC;
     address public BRIDGE;
 
     bool private _isGauss;
     bool private _initialized = false;
 
-    uint256 private _feeAmount = 50 ether;
+    uint256 private _feeAmount = 10000; // FeeToken is in USDC; equals $0.01
     uint16 private _confirmations = 4;
 
-    // Testnet
-    uint private constant _gaussChainID = 1452;
-    uint private constant _polygonChainID = 80001;
-
-/*    // Mainnet
     uint private constant _gaussChainID = 1777;
     uint private constant _polygonChainID = 137;
-*/
+
     event Recover(address to, address token, uint amount);
     event UpdateBridge(address bridge);
     event UpdateFeeToken(address feeToken);
     event UpdateFeeAmount(uint256 amount);
     event UpdateConfirmations(uint16 amount);
-    event MintUSDCg(address to, uint amount);
-    event BurnUSDCg(address to, uint amount);
-    event UnlockUSDCg(address to, uint amount);
-    event LockUSDCg(address from, uint amount);
+    event MintUSDCpol(address to, uint amount);
+    event BurnUSDCpol(address to, uint amount);
+    event UnlockUSDCpol(address to, uint amount);
+    event LockUSDCpol(address from, uint amount);
 
 
     modifier onlyBridge {
@@ -70,16 +65,16 @@ contract USDCgBridgeService is Ownable, ReentrancyGuard {
      *
      * @param _bridge Bridge address
      * @param _feeToken Fee token address
-     * @param _usdcG USDCg address on Gauss (On 'Away' Chain, set to address(0))
+     * @param _usdcPol USDCpol address on Gauss (On 'Away' Chain, set to address(0))
      * @param _usdc USDC address on Polygon (on gauss this is address(0))
      */
-    function init(address _bridge, address _feeToken, address _usdcG, address _usdc) external onlyOwner {
+    function init(address _bridge, address _feeToken, address _usdcPol, address _usdc) external onlyOwner {
         
         require(_initialized == false, "Contract has previously been initialized");
         
         BRIDGE = _bridge;
         FeeToken  = _feeToken;
-        USDCg    = _usdcG;
+        USDCpol    = _usdcPol;
         USDC   = _usdc;
 
         // Approve BRIDGE for Fee token transfers
@@ -99,7 +94,7 @@ contract USDCgBridgeService is Ownable, ReentrancyGuard {
 
 
     /**
-     * @param _recipient Address to deliver USDCg (wallet or contract)
+     * @param _recipient Address to deliver USDCpol (wallet or contract)
      * @param _amountIn Amount of STABLE to wrap on Away Chain
      * @param _source Address of the referrer of the transaction
      * @param _express Enable express mode
@@ -114,15 +109,15 @@ contract USDCgBridgeService is Ownable, ReentrancyGuard {
         if(_isGauss == false) {
             _chain = _gaussChainID;  // sending to Gauss Chain
             SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
-            emit LockUSDCg(msg.sender, _amountIn);
+            emit LockUSDCpol(msg.sender, _amountIn);
         } 
 
         // If the 'isGauss' value is true, we know we are on the Gauss Chain
         else if(_isGauss == true) {
             _chain = _polygonChainID;   // sending to Polygon Chain
-            SafeERC20.safeTransferFrom(IERC20(USDCg), msg.sender, address(this), _amountIn);
-            IUSDCg(USDCg).burn(_amountIn);
-            emit BurnUSDCg(msg.sender, _amountIn);
+            SafeERC20.safeTransferFrom(IERC20(USDCpol), msg.sender, address(this), _amountIn);
+            IUSDCpol(USDCpol).burn(_amountIn);
+            emit BurnUSDCpol(msg.sender, _amountIn);
         }
 
         else {
@@ -131,7 +126,7 @@ contract USDCgBridgeService is Ownable, ReentrancyGuard {
 
         bytes memory _packageData = abi.encode(
             _recipient,     // actual recipient
-            _amountIn,      // amount of tokens wrapped(stable) or burned (USDCg)
+            _amountIn,      // amount of tokens wrapped(stable) or burned (USDCpol)
             _source         // address who refered the traffic
         );
 
@@ -177,13 +172,13 @@ contract USDCgBridgeService is Ownable, ReentrancyGuard {
         if(_isGauss == false) {            
             // We are on Polygon Chain
             SafeERC20.safeTransferFrom(IERC20(USDC), address(this), _recipient, _amountIn);
-            emit UnlockUSDCg(msg.sender, _amountIn);
+            emit UnlockUSDCpol(msg.sender, _amountIn);
         } 
         
         else if(_isGauss == true) {            
             // We are on Gauss Chain
-            IUSDCg(USDCg).mint(_recipient, _amountIn);
-            emit MintUSDCg(msg.sender, _amountIn);
+            IUSDCpol(USDCpol).mint(_recipient, _amountIn);
+            emit MintUSDCpol(msg.sender, _amountIn);
         }
         
         else {
