@@ -107,7 +107,7 @@ contract USDCBridgeService is Ownable, ReentrancyGuard {
     function transfer(address _recipient, uint _amountIn, address _source, bool _express) external payable nonReentrant returns (uint _txId) {
 
         require(_recipient != address(0), "recipient unknown");
-        require(_amountIn > _feeAmount, "Amount to low to cover Bridge Fee");
+        require(_amountIn > _feeAmount, "Amount too low to cover Bridge Fee");
 
         uint _chain;
         uint _adjustedAmountIn;
@@ -116,7 +116,7 @@ contract USDCBridgeService is Ownable, ReentrancyGuard {
         if(_isGauss == false) {
             _chain = _gaussChainID;  // sending to Gauss Chain
             _adjustedAmountIn = _amountIn - _feeAmount;
-            require(_adjustedAmountIn > 0, "Amount to low to cover Bridge Fee");
+            require(_adjustedAmountIn > 0, "Amount too low to cover Bridge Fee");
             SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
             emit LockUSDCpol(msg.sender, _adjustedAmountIn);
         } 
@@ -125,7 +125,7 @@ contract USDCBridgeService is Ownable, ReentrancyGuard {
         else if(_isGauss == true) {
             _chain = _polygonChainID;   // sending to Polygon Chain
             _adjustedAmountIn = _amountIn - _feeAmount;
-            require(_adjustedAmountIn > 0, "Amount to low to cover Bridge Fee");
+            require(_adjustedAmountIn > 0, "Amount too low to cover Bridge Fee");
             SafeERC20.safeTransferFrom(IERC20(USDCpol), msg.sender, address(this), _amountIn);
             IUSDCpol(USDCpol).burn(_adjustedAmountIn);
             emit BurnUSDCpol(msg.sender, _adjustedAmountIn);
@@ -182,7 +182,7 @@ contract USDCBridgeService is Ownable, ReentrancyGuard {
 
         if(_isGauss == false) {            
             // We are on Polygon Chain
-            SafeERC20.safeTransferFrom(IERC20(USDC), address(this), _recipient, _amountIn);
+            SafeERC20.safeTransfer(IERC20(USDC), _recipient, _amountIn);
             emit UnlockUSDCpol(msg.sender, _amountIn);
         } 
         
@@ -270,12 +270,12 @@ contract USDCBridgeService is Ownable, ReentrancyGuard {
     function withdrawERC20Amount(address tokenAddress, address recoveryWallet, uint256 amount) external onlyOwner {
         IERC20 token = IERC20(tokenAddress);
         uint256 balance = token.balanceOf(address(this));
-        require(balance > amount, "Balance to low to transfer amount");
+        require(balance > amount, "Balance too low to transfer amount");
 
         token.transfer(recoveryWallet, amount);
         emit Recover(recoveryWallet, tokenAddress, amount);  
     }
-    
+
 
     // Contract Owner can withdraw any Native sent accidentally
     function nativeRecover(address recoveryWallet) external onlyOwner() {
