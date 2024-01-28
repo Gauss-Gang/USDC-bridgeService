@@ -262,6 +262,21 @@ contract USDCBridgeService is Ownable, ReentrancyGuard {
     }
 
 
+    /* Withdrawl any ERC20 Token that are accidentally sent to this contract
+            WARNING:    Interacting with unsafe tokens or smart contracts can 
+                        result in stolen private keys, loss of funds, and drained
+                        wallets. Use this function with trusted Tokens/Contracts only
+    */
+    function withdrawERC20Amount(address tokenAddress, address recoveryWallet, uint256 amount) external onlyOwner {
+        IERC20 token = IERC20(tokenAddress);
+        uint256 balance = token.balanceOf(address(this));
+        require(balance > amount, "Balance to low to transfer amount");
+
+        token.transfer(recoveryWallet, amount);
+        emit Recover(recoveryWallet, tokenAddress, amount);  
+    }
+    
+
     // Contract Owner can withdraw any Native sent accidentally
     function nativeRecover(address recoveryWallet) external onlyOwner() {
         payable(recoveryWallet).transfer(address(this).balance);
