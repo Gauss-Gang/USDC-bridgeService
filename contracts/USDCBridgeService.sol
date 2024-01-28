@@ -24,16 +24,17 @@ interface IUSDCpol {
  *  the messaging service between Gauss and Polygon
  *      @dev contract desinged to share same contrat address on both Away and Gauss Chains
  */
-contract USDCpolBridgeService is Ownable, ReentrancyGuard {
+contract USDCBridgeService is Ownable, ReentrancyGuard {
     address public FeeToken;
     address public USDCpol;
     address public USDC;
+    address public WETH;
     address public BRIDGE;
 
     bool private _isGauss;
     bool private _initialized = false;
 
-    uint256 private _feeAmount = 10000; // FeeToken is in USDC; equals $0.01
+    uint256 private _feeAmount = 250000; // FeeToken is in USDC; equal to $0.25
     uint16 private _confirmations = 4;
 
     uint private constant _gaussChainID = 1777;
@@ -43,6 +44,7 @@ contract USDCpolBridgeService is Ownable, ReentrancyGuard {
     event UpdateBridge(address bridge);
     event UpdateFeeToken(address feeToken);
     event UpdateFeeAmount(uint256 amount);
+    event UpdateWETH(address weth);
     event UpdateConfirmations(uint16 amount);
     event MintUSDCpol(address to, uint amount);
     event BurnUSDCpol(address to, uint amount);
@@ -65,20 +67,23 @@ contract USDCpolBridgeService is Ownable, ReentrancyGuard {
      *
      * @param _bridge Bridge address
      * @param _feeToken Fee token address
+     * @param _weth Wrapped Native token address
      * @param _usdcPol USDCpol address on Gauss (On 'Away' Chain, set to address(0))
      * @param _usdc USDC address on Polygon (on gauss this is address(0))
      */
-    function init(address _bridge, address _feeToken, address _usdcPol, address _usdc) external onlyOwner {
+    function init(address _bridge, address _feeToken, address _weth, address _usdcPol, address _usdc) external onlyOwner {
         
         require(_initialized == false, "Contract has previously been initialized");
         
         BRIDGE = _bridge;
-        FeeToken  = _feeToken;
-        USDCpol    = _usdcPol;
-        USDC   = _usdc;
+        FeeToken = _feeToken;
+        WETH = _weth;
+        USDCpol = _usdcPol;
+        USDC = _usdc;
 
         // Approve BRIDGE for Fee token transfers
         IERC20(FeeToken).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        IERC20(WETH).approve(_bridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
 
         uint256 currentChainId = block.chainid;
 
@@ -102,22 +107,28 @@ contract USDCpolBridgeService is Ownable, ReentrancyGuard {
     function transfer(address _recipient, uint _amountIn, address _source, bool _express) external payable nonReentrant returns (uint _txId) {
 
         require(_recipient != address(0), "recipient unknown");
+        require(_amountIn > _feeAmount, "Amount to low to cover Bridge Fee");
 
         uint _chain;
+        uint _adjustedAmountIn;
 
         // If the 'isGauss' value is false, we know we are on the Away Chain
         if(_isGauss == false) {
             _chain = _gaussChainID;  // sending to Gauss Chain
+            _adjustedAmountIn = _amountIn - _feeAmount;
+            require(_adjustedAmountIn > 0, "Amount to low to cover Bridge Fee");
             SafeERC20.safeTransferFrom(IERC20(USDC), msg.sender, address(this), _amountIn);
-            emit LockUSDCpol(msg.sender, _amountIn);
+            emit LockUSDCpol(msg.sender, _adjustedAmountIn);
         } 
 
         // If the 'isGauss' value is true, we know we are on the Gauss Chain
         else if(_isGauss == true) {
             _chain = _polygonChainID;   // sending to Polygon Chain
+            _adjustedAmountIn = _amountIn - _feeAmount;
+            require(_adjustedAmountIn > 0, "Amount to low to cover Bridge Fee");
             SafeERC20.safeTransferFrom(IERC20(USDCpol), msg.sender, address(this), _amountIn);
-            IUSDCpol(USDCpol).burn(_amountIn);
-            emit BurnUSDCpol(msg.sender, _amountIn);
+            IUSDCpol(USDCpol).burn(_adjustedAmountIn);
+            emit BurnUSDCpol(msg.sender, _adjustedAmountIn);
         }
 
         else {
@@ -125,9 +136,9 @@ contract USDCpolBridgeService is Ownable, ReentrancyGuard {
         }
 
         bytes memory _packageData = abi.encode(
-            _recipient,     // actual recipient
-            _amountIn,      // amount of tokens wrapped(stable) or burned (USDCpol)
-            _source         // address who refered the traffic
+            _recipient,         // actual recipient
+            _adjustedAmountIn,  // amount of tokens wrapped(stable) or burned (USDCpol)
+            _source             // address who refered the traffic
         );
 
         if(_express) {
@@ -139,7 +150,7 @@ contract USDCpolBridgeService is Ownable, ReentrancyGuard {
                 _packageData,   // encoded data to be processed by this contract on Gauss
                 _confirmations  // number of confirmations before validating
             );
-        } 
+        }
 
         else {
             _txId = IBridgeV2(BRIDGE).sendRequest(
@@ -187,11 +198,13 @@ contract USDCpolBridgeService is Ownable, ReentrancyGuard {
     }
 
 
-    // Update the Paper Bridge address and approve the new bridge to transfer the Fee Token
+    // Update the Bridge address
     function updateBridge(address _newBridge) external onlyOwner {
         IERC20(FeeToken).approve(BRIDGE, 0);
+        IERC20(WETH).approve(BRIDGE, 0);
         BRIDGE = _newBridge;
         IERC20(FeeToken).approve(_newBridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        IERC20(WETH).approve(_newBridge, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);        
         emit UpdateBridge(_newBridge);
     }
 
@@ -209,6 +222,21 @@ contract USDCpolBridgeService is Ownable, ReentrancyGuard {
     function updateFeeAmount(uint256 _amount) external onlyOwner {
         _feeAmount = _amount;
         emit UpdateFeeAmount(_amount);
+    }
+
+
+    // Get the current fee amount
+    function getFeeAmount() external view returns(uint256) {
+        return _feeAmount;
+    }
+
+    
+    // Update the WETH Token and approve the bridge to transfer the new Token
+    function updateWETH(address _newWETH) external onlyOwner {
+        IERC20(WETH).approve(BRIDGE, 0);
+        WETH = _newWETH;
+        IERC20(_newWETH).approve(BRIDGE, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        emit UpdateWETH(_newWETH);
     }
 
 
